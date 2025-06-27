@@ -1,5 +1,5 @@
 import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, UpdateDateColumn, OneToMany, ManyToMany, ManyToOne, JoinColumn, JoinTable } from 'typeorm';
-import { Tarea } from '../../../domain/entities/tarea.entity';
+import { Tarea, EstadoTarea } from '../../../domain/entities/tarea.entity';
 import { AdjuntoEntity } from './adjunto.entity';
 import { ProyectoXTareaEntity } from './proyecto-x-tarea.entity';
 import { ProyectoEntity } from './proyecto.entity';
@@ -15,8 +15,12 @@ export class TareaEntity {
   @Column({ type: 'varchar', length: 2000, default: '' })
   descripcion: string;
 
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  estado: string;
+  @Column({
+    type: 'enum',
+    enum: EstadoTarea,
+    default: EstadoTarea.PENDIENTE
+  })
+  estado: EstadoTarea;
 
   @Column({ length: 1024, default: '' })
   url: string = '';

@@ -1,5 +1,5 @@
-import { Injectable, ConflictException, NotFoundException, Inject } from '@nestjs/common';
-import { Tarea } from '../../domain/entities/tarea.entity';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Tarea, EstadoTarea } from '../../domain/entities/tarea.entity';
 import { TareaRepository } from '../../domain/ports/tarea.repository';
 
 @Injectable()
@@ -37,35 +37,54 @@ export class TareaService {
     return tarea;
   }
 
-  async update(id: number, updateTareaDto: Partial<Tarea> & { 
-    usuarioActualizacion?: string;
-    proyectoId?: number; // ID del proyecto al que se quiere asociar la tarea
-  }): Promise<Tarea> {
+  /**
+   * Actualiza una tarea existente
+   * @param id ID de la tarea a actualizar
+   * @param updateTareaDto Datos para actualizar la tarea
+   * @returns Tarea actualizada
+   */
+  async update(
+    id: number, 
+    updateTareaDto: Partial<Tarea> & { 
+      usuarioActualizacion?: string;
+      proyectoId?: number; // ID del proyecto al que se quiere asociar la tarea
+    }
+  ): Promise<Tarea> {
     // Verificar si la tarea existe
     const existingTarea = await this.findById(id);
     
     // Extraer el ID del proyecto si se proporciona
     const { proyectoId, ...tareaUpdate } = updateTareaDto;
     
+    // Validar el estado si se proporciona
+    if (tareaUpdate.estado && !Object.values(EstadoTarea).includes(tareaUpdate.estado)) {
+      throw new BadRequestException(`Estado no válido. Los estados permitidos son: ${Object.values(EstadoTarea).join(', ')}`);
+    }
+    
     // Obtener el usuario que está realizando la actualización
     const usuarioActualizacion = updateTareaDto.usuarioActualizacion || existingTarea.usuarioActualizacion || 'SISTEMA';
     
     // Actualizar solo los campos proporcionados
-    const updatedTarea = {
+    const updatedTarea: Tarea = {
       ...existingTarea,
       ...tareaUpdate,
       tareaId: id, // Asegurarse de que el ID se mantenga
       fechaHoraActualizacion: new Date(),
-      usuarioActualizacion // Incluir el usuario que actualiza
+      usuarioActualizacion, // Incluir el usuario que actualiza
+      // Asegurarse de que las relaciones no se sobrescriban con undefined
+      proyectos: existingTarea.proyectos,
+      adjuntos: existingTarea.adjuntos
     };
 
     // Manejar la actualización del proyecto si se proporciona
     if (proyectoId !== undefined) {
       // Usar el método existente para asociar la tarea al proyecto
       await this.tareaRepository.addProyectoToTarea(id, proyectoId);
+      // Actualizar la relación en la tarea devuelta
+      updatedTarea.proyectos = [...(existingTarea.proyectos || []), { proyectoId } as any];
     }
 
-    // Actualizar la tarea
+    // Actualizar la tarea en el repositorio
     return this.tareaRepository.update(updatedTarea);
   }
 }
